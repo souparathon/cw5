@@ -1,80 +1,68 @@
 // lib/fish.dart
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 
 class Fish {
+  final Color color;
   final double speed;
 
-  Fish({required this.speed});
+  Fish({required this.color, required this.speed});
 
   Widget buildFish() {
-    return RandomlyMovingFish(speed: speed);
+    // Use AnimatedPositioned or Transform to animate fish
+    return AnimatedFish(
+      color: color,
+      speed: speed,
+    );
   }
 }
 
-class RandomlyMovingFish extends StatefulWidget {
+class AnimatedFish extends StatefulWidget {
+  final Color color;
   final double speed;
 
-  RandomlyMovingFish({required this.speed});
+  AnimatedFish({required this.color, required this.speed});
 
   @override
-  _RandomlyMovingFishState createState() => _RandomlyMovingFishState();
+  _AnimatedFishState createState() => _AnimatedFishState();
 }
 
-class _RandomlyMovingFishState extends State<RandomlyMovingFish> {
-  Random random = Random();
-  Offset targetPosition = Offset(0, 0);
-  late Timer _timer;
+class _AnimatedFishState extends State<AnimatedFish>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _moveFish(); // Start the movement logic when fish is initialized
+    _controller = AnimationController(
+      duration: Duration(seconds: widget.speed.toInt()),
+      vsync: this,
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _timer.cancel(); // Cancel the timer when the widget is disposed
+    _controller.dispose();
     super.dispose();
-  }
-
-  void _moveFish() {
-    _timer = Timer.periodic(Duration(seconds: 5), (timer) {
-      setState(() {
-        // Set a new random target position within the container (300x300)
-        targetPosition = Offset(
-          random.nextDouble() * 280, // Random X position (slightly inside the container)
-          random.nextDouble() * 280, // Random Y position
-        );
-      });
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<Offset>(
-      tween: Tween<Offset>(
-        begin: Offset(0, 0), // Start from the initial position
-        end: targetPosition,  // Move to the new target position
-      ),
-      duration: Duration(seconds: (5 / widget.speed).toInt()), // Adjust duration by speed
-      curve: Curves.easeInOut, // Smooth transition
-      builder: (context, offset, child) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
         return Transform.translate(
-          offset: offset,
-          child: Image.asset(
-            'assets/fish.png',   // Use the fish image instead of a circle
-            width: 40,           // Set the size of the fish image
-            height: 40,
+          offset: Offset(
+              150 * _controller.value, // move fish within container
+              150 * _controller.value),
+          child: Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+            ),
           ),
         );
-      },
-      onEnd: () {
-        // Pause for a second when reaching the target, then pick a new position
-        Future.delayed(Duration(seconds: 1), () {
-          _moveFish(); // Call _moveFish again to choose a new random position
-        });
       },
     );
   }

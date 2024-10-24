@@ -1,89 +1,122 @@
-// lib/fish.dart
-import 'dart:async';
-import 'dart:math';
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'fish.dart';
+import 'database_helper.dart'; // Import the database helper
 
-class Fish {
-  final Color color;
-  final double speed; // Speed is now more related to how quickly it moves to the target
+void main() => runApp(MyApp());
 
-  Fish({required this.color, required this.speed});
-
-  Widget buildFish() {
-    return RandomlyMovingFish(
-      color: color,
-      speed: speed,
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Aquarium(),
     );
   }
 }
 
-class RandomlyMovingFish extends StatefulWidget {
-  final Color color;
-  final double speed;
-
-  RandomlyMovingFish({required this.color, required this.speed});
-
+class Aquarium extends StatefulWidget {
   @override
-  _RandomlyMovingFishState createState() => _RandomlyMovingFishState();
+  _AquariumState createState() => _AquariumState();
 }
 
-class _RandomlyMovingFishState extends State<RandomlyMovingFish> {
-  Random random = Random();
-  Offset targetPosition = Offset(0, 0);
-  late Timer _timer;
+class _AquariumState extends State<Aquarium> {
+  List<Fish> fishList = [];
+  Color selectedColor = Colors.blue;
+  double selectedSpeed = 2.0;
+  final dbHelper = DatabaseHelper(); // Instantiate the database helper
 
   @override
   void initState() {
     super.initState();
-    _moveFish(); // Start the movement logic when fish is initialized
+    _loadSettings(); // Load saved settings when the app starts
   }
 
-  @override
-  void dispose() {
-    _timer.cancel(); // Cancel the timer when the widget is disposed
-    super.dispose();
-  }
-
-  void _moveFish() {
-    _timer = Timer.periodic(Duration(seconds: 5), (timer) {
+  // Add a new fish to the aquarium
+  void _addFish() {
+    if (fishList.length < 10) {
       setState(() {
-        // Set a new random target position within the container (300x300)
-        targetPosition = Offset(
-          random.nextDouble() * 280, // Random X position (slightly inside the container)
-          random.nextDouble() * 280, // Random Y position
-        );
+        fishList.add(Fish(color: selectedColor, speed: selectedSpeed));
       });
-    });
+    }
+  }
+
+  // Save settings to SQLite
+  void _saveSettings() async {
+    await dbHelper.saveSettings(fishList.length, selectedSpeed, selectedColor.value);
+  }
+
+  // Load settings from SQLite
+  void _loadSettings() async {
+    final settings = await dbHelper.loadSettings();
+    if (settings.isNotEmpty) {
+      setState(() {
+        selectedSpeed = settings['speed'] ?? 2.0;
+        selectedColor = Color(settings['color'] ?? Colors.blue.value);
+        int fishCount = settings['fishCount'] ?? 0;
+        fishList = List.generate(fishCount, (index) => Fish(color: selectedColor, speed: selectedSpeed));
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<Offset>(
-      tween: Tween<Offset>(
-        begin: Offset(0, 0), // Start from the initial position
-        end: targetPosition,  // Move to the new target position
-      ),
-      duration: Duration(seconds: (5 / widget.speed).toInt()), // Adjust duration by speed
-      curve: Curves.easeInOut, // Smooth transition
-      builder: (context, offset, child) {
-        return Transform.translate(
-          offset: offset,
-          child: Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: widget.color,
-              shape: BoxShape.circle,
+    return Scaffold(
+      appBar: AppBar(title: Text("Virtual Aquarium")),
+      body: Column(
+        children: [
+          // Aquarium container
+          Container(
+            height: 300,
+            width: 300,
+            color: Colors.blue[100],
+            child: Stack(
+              children: fishList.map((fish) => fish.buildFish()).toList(),
             ),
           ),
-        );
-      },
-      onEnd: () {
-        // Pause for a second when reaching the target, then pick a new position
-        Future.delayed(Duration(seconds: 1), () {
-          _moveFish(); // Call _moveFish again to choose a new random position
-        });
-      },
+          // Fish customization controls
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: _addFish,
+                child: Text("Add Fish"),
+              ),
+              ElevatedButton(
+                onPressed: _saveSettings,
+                child: Text("Save Settings"),
+              ),
+              // Speed slider
+              Slider(
+                value: selectedSpeed,
+                min: 1.0,
+                max: 5.0,
+                divisions: 4,
+                label: "Speed ${selectedSpeed.toString()}",
+                onChanged: (value) {
+                  setState(() {
+                    selectedSpeed = value;
+                  });
+                },
+              ),
+              // Color picker
+              DropdownButton<Color>(
+                value: selectedColor,
+                items: <Color>[Colors.red, Colors.blue, Colors.green, Colors.yellow]
+                    .map((Color color) {
+                  return DropdownMenuItem<Color>(
+                    value: color,
+                    child: Container(width: 24, height: 24, color: color),
+                  );
+                }).toList(),
+                onChanged: (Color? newValue) {
+                  setState(() {
+                    selectedColor = newValue!;
+                  });
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
